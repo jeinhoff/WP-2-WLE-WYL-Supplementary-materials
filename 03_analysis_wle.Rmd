@@ -1,0 +1,140 @@
+---
+title: '03_analysis_wle'
+---
+
+```{r setup}
+library(tidyverse)
+library(rio)
+library(demography)
+library(ggflags)
+library(gridExtra)
+
+options("scipen" = 100, "digits" = 4)
+
+rm(list = ls())
+
+load("outputs/data_final.RData")
+
+```
+
+# WLE adjusted for mortality
+```{r, warning = F}
+
+table_1 <- data %>% filter(!country_cohort %in% c("DK_1928", "DK_1929"))
+
+table_1 <- table_1 %>% mutate(outcome = ifelse(status == "Employed", 1, 0))
+
+table_1 <- table_1 %>% filter(!is.na(outcome)) %>%
+  group_by(country, country_code, country_group, sex, cohort_two, age) %>%
+  reframe(
+    total = n(),
+    Total = sum(1 * weight, na.rm = T),
+    Employed = sum(outcome * weight, na.rm = T),
+    Contr = weighted.mean(outcome, weight = weight, na.rm = T),
+    TotalVar = Total * Contr * (1 - Contr),
+    survival = mean(survival, na.rm = T),
+    cohort = min(cohort)) %>%
+  unique()
+
+table_1 <- table_1 %>% 
+  mutate(Contr = ifelse(Total > 0, Employed / Total * survival, 0),
+         Sd1   = (Contr * (1 - Contr)) / TotalVar) %>% 
+  group_by(country, country_code, country_group, sex, cohort_two) %>% 
+  summarize(WLE = sum(Contr), Var = sum(Sd1, na.rm = T), cohort = cohort) %>% 
+  mutate(low = WLE - 1.96 * sqrt(Var), hig = WLE + 1.96 * sqrt(Var)) %>%
+  unique()
+
+ggplot(table_1, aes(x = as.factor(cohort_two), y = WLE, group = country_code, country = country_code)) +
+  facet_grid(sex ~ country_group) +
+  geom_ribbon(aes(ymin = low, ymax = hig, alpha = 1)) +
+  geom_line(size = 0.3) +
+  geom_point(size = 0.3) +
+  geom_flag(data = table_1 %>% group_by(country_code) %>% filter(cohort == min(cohort)), 
+            aes(x = as.factor(cohort_two), y = WLE, group = country_code, country = country_code), 
+            size = 3) +
+  geom_flag(data = table_1 %>% group_by(country_code) %>% filter(cohort == max(cohort)), 
+            aes(x = as.factor(cohort_two), y = WLE, group = country_code, country = country_code), 
+            size = 3) +
+  theme_linedraw() +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.line = element_line(),
+        axis.ticks = element_line(),
+        legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1, size=6)) +
+  coord_cartesian(ylim = c(0, 8)) +
+  scale_y_continuous("WLE in years (from age 55 to 64)", breaks = seq(-10, 10, 1)) +
+  scale_x_discrete("Birth cohort", labels = c("'28/'29", "'30/'31", "'32/'33", "'34/'35", "'36/'37", "'38/'39", "'40/'41", "'42/'43", "'44/'45", "'46/'47", "'48/'49", "'50/'51", "'52/'53", "'54/'55", "'56/'57")) +
+  scale_alpha(range = c(0.01, 0.1))
+ggsave("outputs/wle_1_unadjusted.png", width = 9, height = 6)
+
+```
+
+# WLE adjusted for mortality and working hours
+```{r, warning = F}
+
+table_2 <- data %>% filter(!country_cohort %in% c("DK_1928", "DK_1929"))
+
+table_2 <- table_2 %>% mutate(outcome = ifelse(status == "Employed", 1, 0))
+
+table_2 <- table_2 %>% filter(!is.na(outcome)) %>%
+  group_by(country, country_code, country_group, sex, cohort_two, age) %>%
+  reframe(
+    Total = sum(1 * weight, na.rm = T),
+    Employed = sum(outcome * weight, na.rm = T),
+    Contr = weighted.mean(outcome, weight = weight, na.rm = T),
+    TotalVar = Total * Contr * (1 - Contr),
+    Time = weighted.mean(working_hours_usual, weight = weight, na.rm = T),
+    TimeN = sum(outcome, na.rm = T ),
+    TimeSd = sd(working_hours_usual, na.rm = T),
+    survival = mean(survival, na.rm = T),
+    cohort = min(cohort)) %>%
+  unique()
+
+table_2 <- table_2 %>% 
+  mutate(Time = ifelse(is.na(Time), 0, Time),
+         TimeSd = ifelse(is.na(TimeSd), 0, TimeSd),
+         Time = ifelse(Time > 40, 1, Time / 40),
+         TimeSd = TimeSd / 40)
+
+table_2 <- table_2 %>% 
+  mutate(Contr= ifelse(Total > 0, Employed / Total * Time * survival, 0),
+         Sd1   = (Contr * (1 - Contr)) / TotalVar,
+         Sd2   = ifelse(Time > 0, TimeSd / sqrt(TimeN), 0),
+         Sdt   = Sd1 * Sd2 + Sd1 * Time^2 + Sd2 * Contr) %>% 
+  group_by(country, country_code, country_group, sex, cohort_two) %>% 
+  summarize(WLE = sum(Contr), Var = sum(Sdt), cohort = cohort) %>% 
+  mutate(low = WLE - 1.96 * sqrt(Var), hig = WLE + 1.96 * sqrt(Var)) %>%
+  unique()
+
+ggplot(table_2, aes(x = as.factor(cohort_two), y = WLE, group = country_code, country = country_code)) +
+  facet_grid(sex ~ country_group) +
+  geom_ribbon(aes(ymin = low, ymax = hig, alpha = 1)) +
+  geom_line(size = 0.3 ) +
+  geom_point(size = 0.3) +
+  geom_flag(data = table_2 %>% group_by(country_code) %>% filter(cohort == min(cohort)), 
+            aes(x = as.factor(cohort_two), y = WLE, group = country_code, country = country_code), 
+            size = 3) +
+  geom_flag(data = table_2 %>% group_by(country_code) %>% filter(cohort == max(cohort)), 
+            aes(x = as.factor(cohort_two), y = WLE, group = country_code, country = country_code), 
+            size = 3) +
+  theme_linedraw() +
+  theme(panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(),
+        axis.line = element_line(),
+        axis.ticks = element_line(),
+        legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 1, hjust=1, size=6)) +
+  coord_cartesian(ylim = c(0, 8)) +
+  scale_y_continuous("WLE in FTE years (from age 55 to 64)", breaks = seq(-10, 10, 1)) +
+  scale_x_discrete("Birth cohort", labels = c("'28/'29", "'30/'31", "'32/'33", "'34/'35", "'36/'37", "'38/'39", "'40/'41", "'42/'43", "'44/'45", "'46/'47", "'48/'49", "'50/'51", "'52/'53", "'54/'55", "'56/'57")) +
+  scale_alpha(range = c(0.01, 0.1))
+ggsave("outputs/wle_2_adjusted.png", width = 9, height = 6)
+
+```
+
+```{r}
+```
+

@@ -1,0 +1,71 @@
+---
+title: '02_analysis_desc'
+---
+
+```{r setup}
+library(tidyverse)
+library(openxlsx)
+library(rio)
+
+options("scipen" = 100, "digits" = 4)
+
+rm(list = ls())
+
+load("outputs/data_final.RData")
+
+```
+
+# Observation counts
+```{r}
+table(data$country, data$cohort_two)
+
+```
+
+# Survey years
+```{r}
+table(data$country, data$year)
+
+```
+
+# Cohorts
+```{r}
+table(data$country, data$cohort)
+
+```
+
+# % with any missing
+```{r}
+table <- data %>%
+  group_by(country) %>%
+  mutate(missing_wh = ifelse(status == "Employed" & is.na(working_hours_usual), 1, 0)) %>%
+  mutate(missing = ifelse(is.na(status) | missing_wh == 1, 1, 0)) %>%
+  summarise(missing = sum(missing, na.rm = T) / n() * 100)
+
+rm(table)
+
+```
+
+# % with missing activity status
+```{r}
+table <- data %>%
+  group_by(country) %>%
+  mutate(missing = ifelse(is.na(status), 1, 0)) %>%
+  summarise(missing = sum(missing) / n() * 100)
+
+rm(table)
+
+```
+
+# % with missing working hours
+```{r}
+table <- data %>%
+  group_by(country) %>%
+  mutate(missing_wh = ifelse(status == "Employed" & is.na(working_hours_usual), 1, 0)) %>%
+  summarise(missing = sum(missing_wh, na.rm = T) / n() * 100)
+
+rm(table)
+
+```
+
+```{r}
+```
