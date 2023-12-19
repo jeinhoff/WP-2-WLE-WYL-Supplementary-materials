@@ -1,0 +1,119 @@
+---
+title: 'Descriptive statistics for both age groups'
+author: 'Jan Einhoff'
+date: '15/12/2023'
+---
+
+```{r setup}
+library(tidyverse)
+library(openxlsx)
+library(rio)
+
+options("scipen" = 100, "digits" = 4)
+
+rm(list = ls())
+
+load("outputs/data_final_55_64.RData")
+
+data_55_64 <- data
+
+load("outputs/data_final_65_74.RData")
+
+data_65_74 <- data
+
+rm(data)
+
+
+```
+
+# Observation counts in cohorts
+```{r}
+table_55_64 <- table(data_55_64$country, data_55_64$cohort_two) %>% as.data.frame() %>% pivot_wider(names_from = Var2, values_from = Freq)
+
+write.xlsx(table_55_64, "table_55_64.xlsx")
+
+table_65_74 <- table(data_65_74$country, data_65_74$cohort_two) %>% as.data.frame() %>% pivot_wider(names_from = Var2, values_from = Freq)
+
+write.xlsx(table_65_74, "table_65_74.xlsx")
+
+rm(table_55_64, table_65_74)
+
+```
+
+# Survey years
+```{r}
+table_55_64 <- table(data_55_64$country, data_55_64$year) %>% as.data.frame() %>% pivot_wider(names_from = Var2, values_from = Freq)
+
+write.xlsx(table_55_64, "table_55_64.xlsx")
+
+table_65_74 <- table(data_65_74$country, data_65_74$year) %>% as.data.frame() %>% pivot_wider(names_from = Var2, values_from = Freq)
+
+write.xlsx(table_65_74, "table_65_74.xlsx")
+
+rm(table_55_64, table_65_74)
+
+```
+
+# Cohorts
+```{r}
+table_55_64 <- table(data_55_64$country, data_55_64$cohort) %>% as.data.frame() %>% pivot_wider(names_from = Var2, values_from = Freq)
+
+write.xlsx(table_55_64, "table_55_64.xlsx")
+
+table_65_74 <- table(data_65_74$country, data_65_74$cohort) %>% as.data.frame() %>% pivot_wider(names_from = Var2, values_from = Freq)
+
+write.xlsx(table_65_74, "table_65_74.xlsx")
+
+rm(table_55_64, table_65_74)
+
+```
+
+# Country observations
+```{r}
+table(data_55_64$cohort, data_55_64$country)
+
+```
+
+# Cohorts
+```{r}
+
+```
+
+# % with any missing
+```{r}
+table <- data_65_74 %>%
+  group_by(country, gender) %>%
+  mutate(missing_wh = ifelse(status == "Employed" & working_hours == 0, 1, 0)) %>%
+  mutate(missing = ifelse(is.na(status) | missing_wh == 1, 1, 0)) %>%
+  summarise(missing = sum(missing, na.rm = T) / n() * 100)
+
+write.xlsx(table, "data_55_64.xlsx")
+
+
+
+```
+
+# % with missing activity status
+```{r}
+table <- data %>%
+  group_by(country) %>%
+  mutate(missing = ifelse(is.na(status), 1, 0)) %>%
+  summarise(missing = sum(missing) / n() * 100)
+
+rm(table)
+
+```
+
+# % with missing working hours
+```{r}
+table <- data %>%
+  group_by(country) %>%
+  mutate(missing_wh = ifelse(status == "Employed" & is.na(working_hours_usual), 1, 0)) %>%
+  summarise(missing = sum(missing_wh, na.rm = T) / n() * 100)
+
+rm(table)
+
+```
+
+```{r}
+```
